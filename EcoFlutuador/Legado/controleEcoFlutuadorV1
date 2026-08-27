@@ -1,0 +1,134 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ESP32Servo.h>
+
+
+const char* ssid = "ESP32-EcoFlutuador";
+const char* password = "12345678";
+
+WebServer server(80);
+
+
+#define ESC_PIN1 12
+#define ESC_PIN2 14
+
+Servo esc1;
+Servo esc2;
+
+
+
+int pctParaMicro(int pct) {
+  pct = constrain(pct, 0, 100);
+  return map(pct, 0, 100, 1000, 2000);
+}
+
+void parar(){
+  esc1.writeMicroseconds(1000);
+  esc2.writeMicroseconds(1000);
+}
+
+void avancar(){
+  int vel = pctParaMicro(30);
+  esc1.writeMicroseconds(vel);
+  esc2.writeMicroseconds(vel);
+}
+
+
+void esquerda(){
+  esc1.writeMicroseconds(pctParaMicro(15));
+  esc2.writeMicroseconds(pctParaMicro(30));
+}
+
+void direita(){
+  esc1.writeMicroseconds(pctParaMicro(30));
+  esc2.writeMicroseconds(pctParaMicro(15));
+}
+
+void girarEsq(){
+  esc1.writeMicroseconds(1000);
+  esc2.writeMicroseconds(pctParaMicro(30));
+}
+
+void girarDir(){
+  esc1.writeMicroseconds(pctParaMicro(30));
+  esc2.writeMicroseconds(1000);
+}
+
+
+void executarComando(char cmd){
+  switch(cmd){
+    case 'w': avancar(); break;
+    case 'a': esquerda(); break;
+    case 'd': direita(); break;
+    case 'q': girarEsq(); break;
+    case 'e': girarDir(); break;
+    case 's': parar(); break;
+  }
+}
+
+
+String paginaHTML(){
+  return R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+<title>EcoFlutuador</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+button{width:80px;height:80px;margin:5px;font-size:20px;}
+</style>
+</head>
+<body>
+<h2>Controle EcoFlutuador</h2>
+<div>
+<button onclick="mover('w')">Frente</button><br>
+<button onclick="mover('a')">Esq</button>
+<button onclick="mover('s')">Parar</button>
+<button onclick="mover('d')">Dir</button><br>
+<button onclick="mover('q')">Girar E</button>
+<button onclick="mover('e')">Girar D</button>
+</div>
+<script>
+function mover(cmd){
+fetch('/move?cmd='+cmd);
+}
+</script>
+</body>
+</html>
+)rawliteral";
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  esc1.attach(ESC_PIN1, 1000, 2000);
+  esc2.attach(ESC_PIN2, 1000, 2000);
+
+  Serial.println("Armando ESC...");
+  parar();
+  delay(3000);
+
+  WiFi.softAP(ssid, password);
+  Serial.println("WiFi criado!");
+
+  server.on("/", HTTP_GET, [](){
+    server.send(200, "text/html", paginaHTML());
+  });
+
+  server.on("/move", HTTP_GET, [](){
+    if(server.hasArg("cmd")){
+      char cmd = server.arg("cmd").charAt(0);
+      executarComando(cmd);
+    }
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.begin();
+  Serial.println("Servidor iniciado!");
+}
+
+
+void loop(){
+  server.handleClient();
+}

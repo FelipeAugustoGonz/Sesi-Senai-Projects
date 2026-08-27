@@ -1,0 +1,356 @@
+*********************************************
+1) SETUP DO RASPBERRY PI (ISO nova)
+*********************************************
+
+PRÉ-REQUISITO — Configurar antes de gravar a ISO (Raspberry Pi Imager ⚙️):
+  - Usuário: eco
+  - Senha: 12345678
+  - Enable SSH
+  - WiFi: NOME_WIFI_PC / SENHA_WIFI_PC
+  - WiFi country: BR
+
+PRIMEIRO ACESSO:
+  - Conecte PC e RPi no mesmo WiFi 
+  - Descubra o IP: arp -a 
+  - ssh eco@IP_DA_RASPBERRY
+
+HABILITAR VNC:
+  sudo raspi-config
+  → Interface Options → VNC → Yes → Finish
+  sudo systemctl enable vncserver-x11-serviced
+  sudo systemctl start vncserver-x11-serviced
+
+CONECTAR NO VNC VIEWER:
+  → IP_DA_RASPBERRY 
+  → Usuário: eco | Senha: 12345678
+
+*********************************************
+2) SETUP CONEXÃO ESP32
+*********************************************
+
+    OBSERVAÇÃO: Conecte o PC na rede da ESP32 DEPOIS da Raspberry Pi.
+    Caso contrário, há conflito de IP (PC rouba o 192.168.4.2).
+
+PASSO 1 — Com a RPi conectada no WiFi do PC, adicionar a rede da ESP32:
+  nmcli dev wifi connect "ESP32-EcoFlutuador" password "12345678" ifname wlan0
+
+
+PASSO 2 — Fixar IP via GUI:
+  > Clique no ícone WiFi > Advanced Options > Edit Connections
+  > Selecione ESP32-EcoFlutuador > IPv4 Settings
+  > Method: Manual → Add:
+    Address : 192.168.4.2
+    Netmask : 255.255.255.0
+    Gateway : 192.168.4.1
+  > DNS Servers: 192.168.4.1
+  > Save
+
+PASSO 3 — Configurar prioridades e autoconnect:
+  nmcli connection modify "ESP32-EcoFlutuador" connection.autoconnect yes
+  nmcli connection modify "ESP32-EcoFlutuador" connection.autoconnect-priority 10
+  nmcli connection modify "NOME_WIFI_PC" connection.autoconnect yes
+  nmcli connection modify "NOME_WIFI_PC" connection.autoconnect-priority 5
+
+PASSO 4 — Verificar se foi salvo:
+  nmcli connection show "ESP32-EcoFlutuador" | grep autoconnect
+
+  Esperado:
+    connection.autoconnect:          yes
+    connection.autoconnect-priority: 10
+
+PASSO 5 — Trocar para a rede da ESP32:
+  nmcli connection up "ESP32-EcoFlutuador"
+  → VNC vai cair — reconecte em 192.168.4.2
+
+PASSO 6 — Conecte o PC na rede ESP32-EcoFlutuador (senha: 12345678)
+  → Reconecte o VNC Viewer: 192.168.4.2
+
+*********************************************
+COMANDOS ÚTEIS
+*********************************************
+
+  # Trocar para ESP32
+  nmcli connection up "ESP32-EcoFlutuador"
+
+  # Voltar para WiFi do PC
+  nmcli connection up "NOME_WIFI_PC"
+
+  # Ver rede atual
+  iwconfig wlan0
+
+  # Ver IP atual
+  ip addr show wlan0 | grep inet
+
+  # Verificar autoconnect
+  nmcli connection show "ESP32-EcoFlutuador" | grep autoconnect
+ 
+*********************************************
+3) SETUP PROGRAMAÇÃO
+*********************************************
+
+PASSO 1 - Sincronizar a data do RPi
+   sudo date -s "ano-mes-dia hora:minuto:segundo";
+
+PASSO 2 - Atualizar e instalar os pacotes necessários
+    sudo apt update
+	sudo apt install -y python3-flask python3-opencv
+
+PASSO 3 - Checar a conexão da Webcam
+	v4l2-ctl --list-devices
+
+
+*********************************************
+PASSO 4 - Criar o arquivo do Script Python
+    nano ~/stream_camera.py
+*********************************************
+from flask import Flask, Response
+import cv2
+
+app = Flask(__name__)
+
+def gerar_frames():
+    cam = cv2.VideoCapture('/dev/video0')
+    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+    cam.set(cv2.CAP_PROP_FPS, 15)
+
+    while True:
+        sucesso, frame = cam.read()
+        if not sucesso:
+            break
+        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' +
+               buffer.tobytes() + b'\r\n')
+
+@app.route('/stream')
+def stream():
+    return Response(
+        gerar_frames(),
+        mimetype='multipart/x-mixed-replace; boundary=frame'
+    )
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, threaded=True)
+*********************************************
+PASSO 5 - Criar o serviço systemmd
+sudo nano /etc/systemd/system/ecoflutuador-cam.service
+*********************************************
+
+[Unit]
+Description=EcoFlutuador Camera Stream
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/eco/stream_camera.py
+Restart=always
+User=eco
+
+[Install]
+WantedBy=multi-user.target
+
+*********************************************
+COMO TESTAR?
+
+sudo systemctl enable ecoflutuador-cam
+sudo systemctl start ecoflutuador-cam
+python3 stream_camera.py
+http://(IP DA RPI):5000/stream
+
+*********************************************
+
+PASSO 6 - Atualizar o HTML da ESP32
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ESP32Servo.h>
+
+
+const char* ssid = "ESP32-EcoFlutuador";
+const char* password = "12345678";
+
+WebServer server(80);
+
+
+#define ESC_PIN1 12
+#define ESC_PIN2 14
+
+Servo esc1;
+Servo esc2;
+
+int pctParaMicro(int pct) {
+  pct = constrain(pct, 0, 100);
+  return map(pct, 0, 100, 1000, 2000);
+}
+
+void parar(){
+  esc1.writeMicroseconds(1000);
+  esc2.writeMicroseconds(1000);
+}
+
+void avancar(){
+  int vel = pctParaMicro(30);
+  esc1.writeMicroseconds(vel);
+  esc2.writeMicroseconds(vel);
+}
+
+
+void esquerda(){
+  esc1.writeMicroseconds(pctParaMicro(15));
+  esc2.writeMicroseconds(pctParaMicro(30));
+}
+
+void direita(){
+  esc1.writeMicroseconds(pctParaMicro(30));
+  esc2.writeMicroseconds(pctParaMicro(15));
+}
+
+void girarEsq(){
+  esc1.writeMicroseconds(1000);
+  esc2.writeMicroseconds(pctParaMicro(30));
+}
+
+void girarDir(){
+  esc1.writeMicroseconds(pctParaMicro(30));
+  esc2.writeMicroseconds(1000);
+}
+
+
+void executarComando(char cmd){
+  switch(cmd){
+    case 'w': avancar(); break;
+    case 'a': esquerda(); break;
+    case 'd': direita(); break;
+    case 'q': girarEsq(); break;
+    case 'e': girarDir(); break;
+    case 's': parar(); break;
+  }
+}
+
+
+String paginaHTML(){
+  // Coloque o IP do seu Raspberry Pi aqui
+ String streamUrl = "http://192.168.4.2/stream";
+  
+  return R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EcoFlutuador</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { text-align: center; font-family: Arial; background: #1a1a2e; color: white; }
+    h2 { margin: 10px; }
+    #videoStream {
+      width: 100%;
+      max-width: 640px;
+      border: 2px solid #00d4ff;
+      border-radius: 8px;
+      background: #000;
+    }
+    .controles { margin-top: 15px; }
+    button {
+      width: 80px; height: 80px;
+      margin: 5px; font-size: 16px;
+      background: #0f3460; color: white;
+      border: 1px solid #00d4ff; border-radius: 8px;
+      cursor: pointer;
+    }
+    button:active { background: #00d4ff; color: black; }
+    #status { font-size: 12px; color: #aaa; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h2>🚤 EcoFlutuador</h2>
+
+  <img id="videoStream" src=")rawliteral" + streamUrl + R"rawliteral(" 
+       onerror="streamErro()" onload="streamOk()">
+  <div id="status">Conectando ao stream...</div>
+
+  <div class="controles">
+    <button ontouchstart="mover('w')" ontouchend="mover('s')" onclick="mover('w')">▲<br>Frente</button><br>
+    <button ontouchstart="mover('q')" ontouchend="mover('s')" onclick="mover('q')">↺<br>Gir E</button>
+    <button ontouchstart="mover('a')" ontouchend="mover('s')" onclick="mover('a')">◀<br>Esq</button>
+    <button onclick="mover('s')">⏹<br>Parar</button>
+    <button ontouchstart="mover('d')" ontouchend="mover('s')" onclick="mover('d')">▶<br>Dir</button>
+    <button ontouchstart="mover('e')" ontouchend="mover('s')" onclick="mover('e')">↻<br>Gir D</button>
+  </div>
+
+  <script>
+    function mover(cmd){
+      fetch('/move?cmd=' + cmd);
+    }
+    function streamOk(){
+      document.getElementById('status').innerText = '🟢 Stream ativo';
+    }
+    function streamErro(){
+      document.getElementById('status').innerText = '🔴 Stream offline — verifique o Raspberry Pi';
+    }
+  </script>
+</body>
+</html>
+)rawliteral";
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  esc1.attach(ESC_PIN1, 1000, 2000);
+  esc2.attach(ESC_PIN2, 1000, 2000);
+
+  Serial.println("Armando ESC...");
+  parar();
+  delay(3000);
+
+   WiFi.softAP(ssid, password);
+    Serial.println("WiFi criado!");
+  # WiFi.mode(WIFI_STA);
+  # WiFi.begin(ssid, password);
+
+  server.on("/", HTTP_GET, [](){
+    server.send(200, "text/html", paginaHTML());
+  });
+
+  server.on("/move", HTTP_GET, [](){
+    if(server.hasArg("cmd")){
+      char cmd = server.arg("cmd").charAt(0);
+      executarComando(cmd);
+    }
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.begin();
+  Serial.println("Servidor iniciado!");
+}
+
+
+void loop(){
+  server.handleClient();
+}
+
+*********************************************
+4) TRANSMISSÃO DA IMAGEM VIA CABO
+*********************************************
+
+PASSO 1 - instalar nginx
+    sudo apt install nginx
+
+PASSO 2 - configurar o nginx
+    sudo nano /etc/nginx/sites-available/default
+
+    Substitui o server default por:
+
+    server {
+    listen 80;
+
+    location /stream {
+        proxy_pass http://localhost:5000/?action=stream;
+        proxy_buffering off;
+    }
+}
+
+PASSO 3 - Reniciar o nginx
+    sudo systemctl restart nginx
+
+

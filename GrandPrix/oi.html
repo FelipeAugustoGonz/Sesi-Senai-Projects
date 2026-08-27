@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoramento de Rolamentos - Desafio Vale</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: -10px;
+        }
+
+        .cards {
+            display: flex;
+            gap: 15px;
+        }
+
+        .card {
+            flex: 1;
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+        }
+
+        .card:nth-child(1) {
+            border-left-color: #22c55e;
+        }
+
+        .card:nth-child(2) {
+            border-left-color: #facc15;
+        }
+
+        .card:nth-child(3) {
+            border-left-color: #ef4444;
+        }
+
+        .card-label {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+
+        .valor {
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .verde {
+            color: #22c55e;
+        }
+
+        .amarelo {
+            color: #facc15;
+        }
+
+        .vermelho {
+            color: #ef4444;
+        }
+
+        .box {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .box h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 8px;
+            color: #94a3b8;
+            font-weight: 500;
+            font-size: 13px;
+            border-bottom: 1px solid #334155;
+        }
+
+        td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-ok {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .status-analise {
+            background: rgba(250, 204, 21, 0.15);
+            color: #facc15;
+        }
+
+        .status-critico {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .chart-container {
+            height: 220px;
+            position: relative;
+        }
+
+        .sensor-value {
+            margin-top: 15px;
+            padding: 15px;
+            background: #0f172a;
+            border-radius: 8px;
+        }
+
+        .current-reading {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .reading-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #60a5fa;
+            text-align: center;
+        }
+
+        /* 🎮 NOVOS CONTROLES */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        
+
+        .key-hint {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .hint {
+            color: #64748b;
+            font-size: 11px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div>
+            <h1> Monitoramento de Rolamentos - Desafio VALE</h1>
+            <br>
+            <div class="subtitle">Sistema Híbrido: Magnetômetro + Visão Computacional | Modo: Demonstração Interativa</div>
+        </div>
+        <br>
+        <br>
+
+        <div class="cards">
+            <div class="card">
+                <div class="card-label">✅ Operação Normal</div>
+                <div class="valor verde" id="ok">145</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">⚠️ Em Monitoramento</div>
+                <div class="valor amarelo" id="analise">28</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">🔴 Alerta Crítico</div>
+                <div class="valor vermelho" id="critico">7</div>
+            </div>
+        </div>
+
+        <div class="grid">
+
+            <!-- TABELA -->
+            <div class="box">
+                <h3>📋 Últimos Alertas - Vagões Monitorados</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Vagão</th>
+                            <th>Eixo</th>
+                            <th>Score</th>
+                            <th>Status</th>
+                            <th>Ação Recomendada</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-body">
+                        <!-- Preenchido via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- GRÁFICO + SENSOR + CONTROLES -->
+            <div class="box">
+                <h3>📊 Tendência de Degradação (Últimas 10 leituras)</h3>
+                <div class="chart-container">
+                    <canvas id="grafico"></canvas>
+                </div>
+                <div class="sensor-value">
+                    <div class="current-reading">
+                        <span class="status-indicator" style="background: #60a5fa;"></span>
+                        Leitura Atual do Magnetômetro
+                    </div>
+                    <div class="reading-value" id="leitura-atual">42.5</div>
+                </div>
+                
+                <!-- 🎮 CONTROLES VISUAIS -->
+                <div class="controls">
+                    <button class="control-btn up" id="btn-up" title="Aumentar degradação (W ou ↑)">
+                        
+                        <span class="key-hint"> </span>
+                    </button>
+                    <button class="control-btn down" id="btn-down" title="Diminuir degradação (S ou ↓)">
+                        
+                        <span class="key-hint"> </span>
+                    </button>
+                    <button class="control-btn reset" id="btn-reset" title="Resetar simulação (R)">
+                        
+                        <span class="key-hint"> </span>
+                    </button>
+                </div>
+                
+                
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURAÇÃO INICIAL
+        // ============================================
+        const ctx = document.getElementById('grafico').getContext('2d');
+        
+        // Estado global
+        let ultimoStatus = "ok";
+        let dados = [28, 32, 35, 38, 42, 40, 38, 36, 39, 42.5];
+        let valorAtual = 42.5;
+        
+        // Contadores por status
+        let contadores = {
+            ok: 145,
+            analise: 28,
+            critico: 7
+        };
+
+        // Dados da tabela (simulação)
+        const vagaoData = [
+            { vagao: 'GDT-108', eixo: 'E2', score: 92, status: 'ok', acao: 'Nenhuma' },
+            { vagao: 'GDU-245', eixo: 'E1', score: 68, status: 'analise', acao: 'Inspeção Programada' },
+            { vagao: 'GDT-156', eixo: 'E4', score: 45, status: 'critico', acao: 'Troca Imediata' },
+            { vagao: 'GDU-089', eixo: 'E3', score: 55, status: 'analise', acao: 'Monitorar' },
+            { vagao: 'GDT-312', eixo: 'E2', score: 85, status: 'ok', acao: 'Nenhuma' }
+        ];
+
+        // ============================================
+        // CONFIGURAÇÃO DO GRÁFICO
+        // ============================================
+        const grafico = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['-9', '-8', '-7', '-6', '-5', '-4', '-3', '-2', '-1', 'Atual'],
+                datasets: [{
+                    label: 'Score de Degradação',
+                    data: dados,
+                    borderColor: '#60a5fa',
+                    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: (context) => {
+                        const value = context.raw;
+                        if (value > 70) return '#ef4444';
+                        if (value > 50) return '#facc15';
+                        return '#22c55e';
+                    },
+                    pointBorderColor: '#1e293b',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                let label = `Score: ${context.raw.toFixed(1)}`;
+                                if (context.raw > 70) label += ' 🔴 Crítico';
+                                else if (context.raw > 50) label += ' ⚠️ Análise';
+                                else label += ' ✅ OK';
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            color: '#334155'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Score de Degradação',
+                            color: '#94a3b8'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // ============================================
+        // FUNÇÕES AUXILIARES
+        // ============================================
+        function determinarStatus(valor) {
+            if (valor > 70) return "critico";
+            if (valor > 50) return "analise";
+            return "ok";
+        }
+
+        function atualizarContadores(novoStatus, statusAnterior) {
+            // Decrementa o status anterior
+            if (statusAnterior === "ok") contadores.ok = Math.max(0, contadores.ok - 1);
+            else if (statusAnterior === "analise") contadores.analise = Math.max(0, contadores.analise - 1);
+            else if (statusAnterior === "critico") contadores.critico = Math.max(0, contadores.critico - 1);
+            
+            // Incrementa o novo status
+            if (novoStatus === "ok") contadores.ok++;
+            else if (novoStatus === "analise") contadores.analise++;
+            else if (novoStatus === "critico") contadores.critico++;
+            
+            // Atualiza o DOM
+            document.getElementById('ok').innerText = contadores.ok;
+            document.getElementById('analise').innerText = contadores.analise;
+            document.getElementById('critico').innerText = contadores.critico;
+        }
+
+        function atualizarTabela() {
+            const tbody = document.getElementById('tabela-body');
+            tbody.innerHTML = '';
+            
+            vagaoData.forEach(item => {
+                const row = tbody.insertRow();
+                
+                // Vagão
+                row.insertCell(0).textContent = item.vagao;
+                // Eixo
+                row.insertCell(1).textContent = item.eixo;
+                // Score
+                row.insertCell(2).textContent = item.score;
+                
+                // Status com badge
+                const statusCell = row.insertCell(3);
+                const badge = document.createElement('span');
+                badge.className = `status-badge status-${item.status}`;
+                badge.textContent = item.status === 'ok' ? 'OK' : (item.status === 'analise' ? 'ANÁLISE' : 'CRÍTICO');
+                statusCell.appendChild(badge);
+                
+                // Ação
+                row.insertCell(4).textContent = item.acao;
+            });
+        }
+
+        function atualizarGrafico() {
+            // Adiciona novo valor
+            dados.push(valorAtual);
+            if (dados.length > 10) dados.shift();
+            
+            // Atualiza gráfico
+            grafico.data.datasets[0].data = dados;
+            grafico.update();
+            
+            // Atualiza leitura atual
+            document.getElementById('leitura-atual').textContent = valorAtual.toFixed(1);
+            
+            // Determina e processa mudança de status
+            const novoStatus = determinarStatus(valorAtual);
+            if (novoStatus !== ultimoStatus) {
+                atualizarContadores(novoStatus, ultimoStatus);
+                
+                // Adiciona novo alerta na tabela se for crítico ou análise
+                if (novoStatus === 'critico' || novoStatus === 'analise') {
+                    const novoAlerta = {
+                        vagao: `GDT-${Math.floor(Math.random() * 400) + 100}`,
+                        eixo: `E${Math.floor(Math.random() * 4) + 1}`,
+                        score: Math.round(valorAtual),
+                        status: novoStatus,
+                        acao: novoStatus === 'critico' ? 'Troca Imediata' : 'Inspeção Programada'
+                    };
+                    
+                    vagaoData.unshift(novoAlerta);
+                    if (vagaoData.length > 5) vagaoData.pop();
+                    atualizarTabela();
+                }
+                
+                ultimoStatus = novoStatus;
+            }
+        }
+
+        // 🎮 FUNÇÕES DE CONTROLE
+        function aumentarDegradacao() {
+            valorAtual += Math.random() * 15 + 10; // Aumenta 10-25 pontos
+            if (valorAtual > 100) valorAtual = 100;
+            atualizarGrafico();
+        }
+
+        function diminuirDegradacao() {
+            valorAtual -= Math.random() * 15 + 5; // Diminui 5-20 pontos
+            if (valorAtual < 0) valorAtual = 0;
+            atualizarGrafico();
+        }
+
+        function resetarSimulacao() {
+            valorAtual = 42.5;
+            dados = [28, 32, 35, 38, 42, 40, 38, 36, 39, 42.5];
+            contadores = { ok: 145, analise: 28, critico: 7 };
+            ultimoStatus = "ok";
+            
+            document.getElementById('ok').innerText = contadores.ok;
+            document.getElementById('analise').innerText = contadores.analise;
+            document.getElementById('critico').innerText = contadores.critico;
+            
+            atualizarGrafico();
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        // Botões
+        document.getElementById('btn-up').addEventListener('click', aumentarDegradacao);
+        document.getElementById('btn-down').addEventListener('click', diminuirDegradacao);
+        document.getElementById('btn-reset').addEventListener('click', resetarSimulacao);
+        
+        // Teclado
+        document.addEventListener('keydown', (e) => {
+            // Previne scroll da página com setas
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S' || e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+            }
+            
+            // W ou Seta para cima
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+                aumentarDegradacao();
+                document.getElementById('btn-up').style.transform = 'scale(0.95)';
+                setTimeout(() => document.getElementById('btn-up').style.transform = '', 100);
+            }
+            
+            // S ou Seta para baixo
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+                diminuirDegradacao();
+                document.getElementById('btn-down').style.transform = 'scale(0.95)';
+                setTimeout(() => document.getElementById('btn-down').style.transform = '', 100);
+            }
+            
+            // R para reset
+            if (e.key === 'r' || e.key === 'R') {
+                resetarSimulacao();
+                document.getElementById('btn-reset').style.transform = 'scale(0.95)';
+                setTimeout(() => document.getElementById('btn-reset').style.transform = '', 100);
+            }
+        });
+
+        // ============================================
+        // SIMULAÇÃO AUTOMÁTICA (DESATIVADA - MODO MANUAL)
+        // ============================================
+        
+        // Desgaste natural (opcional - pode comentar se quiser só manual)
+        /*
+        setInterval(() => {
+            valorAtual -= Math.random() * 2 + 0.5;
+            if (valorAtual < 10) valorAtual = 10;
+            atualizarGrafico();
+        }, 3000);
+        */
+
+        // ============================================
+        // INICIALIZAÇÃO
+        // ============================================
+        atualizarTabela();
+        document.getElementById('leitura-atual').textContent = valorAtual.toFixed(1);
+
+        console.log('🚂 Sistema de Monitoramento EFC iniciado');
+        console.log('🎮 Controles disponíveis:');
+        console.log('   ⬆️ W / Seta para cima: Aumentar degradação');
+        console.log('   ⬇️ S / Seta para baixo: Diminuir degradação');
+        console.log('   🔄 R: Resetar simulação');
+        console.log('📊 Monitorando 180 rolamentos ativos');
+        console.log('🎯 Precisão do modelo: 94.7%');
+    </script>
+
+</body>
+
+</html>

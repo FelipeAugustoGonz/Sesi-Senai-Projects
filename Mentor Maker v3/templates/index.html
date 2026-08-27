@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Leia | Mentor Maker{% endblock %}
+
+{% block body_class %}page-home{% endblock %}
+
+{% block content %}
+<section class="assistant-stage">
+    <div class="assistant-shell">
+        <h2 class="assistant-title">Olá! Sou a Léia 🧡</h2>
+        <p class="assistant-status-top" id="listen-pill">✅ Pronto</p>
+
+        <div class="conversation-card">
+            <p class="conversation-label">Pergunta</p>
+            <p class="conversation-question" id="ia-pergunta">Faça uma pergunta para começar.</p>
+
+            <p class="conversation-label answer-label">Resposta</p>
+            <p class="conversation-answer" id="ia-resposta">Estou pronta para ajudar você.</p>
+        </div>
+
+        <p class="assistant-status-bottom" id="ia-status">✅ Pronto</p>
+
+        <button class="voice-button" id="toggle-listen-button" type="button" aria-label="Ativar escuta">
+            <span class="voice-button-icon"><i class="fas fa-microphone"></i></span>
+            <span class="voice-button-text">Toque para falar comigo</span>
+        </button>
+
+        <button class="voice-button" id="encerrar-atendimento-button" type="button" hidden>
+            <span class="voice-button-icon"><i class="fas fa-stop-circle"></i></span>
+            <span class="voice-button-text">Encerrar atendimento</span>
+        </button>
+
+        <p class="urgent-note">
+            Grupo urgente:
+            <span id="grupo-urgente">Nenhum</span>
+        </p>
+
+        <a class="monitor-link" href="/dashboard">Monitoramento</a>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Mentor Maker{% endblock %}
+
+{% block body_class %}page-dashboard{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div>
+        <p class="section-kicker">Monitoramento</p>
+        <h2 class="hero-title compact">Panorama operacional dos atendimentos</h2>
+        <p class="hero-text compact">
+            Dados persistidos em banco — sobrevivem a reinicializações e acumulam entre sessões.
+        </p>
+    </div>
+    <div class="panel-card emphasis narrow">
+        <div class="panel-label">Atualização automática</div>
+        <div class="metric-big">1s</div>
+        <p class="support-text">Dados sincronizados continuamente com o Flask.</p>
+    </div>
+</section>
+
+<!-- RESUMO NUMÉRICO -->
+<section class="stats-grid">
+    <article class="panel-card stat-card">
+        <div class="panel-label">Total de atendimentos</div>
+        <div class="metric-number" id="stat-total">0</div>
+    </article>
+    <article class="panel-card stat-card">
+        <div class="panel-label">Em andamento</div>
+        <div class="metric-number" id="stat-andamento">0</div>
+    </article>
+    <article class="panel-card stat-card">
+        <div class="panel-label">Finalizados</div>
+        <div class="metric-number" id="stat-finalizados">0</div>
+    </article>
+    <article class="panel-card stat-card">
+        <div class="panel-label">Tempo médio</div>
+        <div class="metric-number" id="stat-tempo-medio">0s</div>
+    </article>
+</section>
+
+<!-- STATUS AO VIVO + FILA -->
+<section class="content-grid dashboard-grid">
+    <div class="panel-card">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">Status</p>
+                <h3>Sistema ao vivo</h3>
+            </div>
+        </div>
+        <div class="live-summary">
+            <div class="summary-row">
+                <span>Modo</span>
+                <strong id="live-modo">--</strong>
+            </div>
+            <div class="summary-row">
+                <span>Escuta</span>
+                <strong id="live-escuta">--</strong>
+            </div>
+            <div class="summary-row">
+                <span>Grupo atual</span>
+                <strong id="live-grupo">--</strong>
+            </div>
+            <div class="summary-row">
+                <span>Urgente</span>
+                <strong id="live-urgente">--</strong>
+            </div>
+            <div class="summary-row">
+                <span>Conteúdo</span>
+                <strong id="live-conteudo">--</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel-card">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">Fila</p>
+                <h3>Prioridades aguardando</h3>
+            </div>
+        </div>
+        <div id="queue-bars" class="queue-bars empty-state">Sem grupos em espera.</div>
+    </div>
+
+    <!-- HISTÓRICO COMPLETO -->
+    <div class="panel-card wide-card">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">Histórico</p>
+                <h3>Atendimentos recentes</h3>
+            </div>
+        </div>
+        <div id="historico-lista" class="history-list empty-state">Nenhum atendimento registrado ainda.</div>
+    </div>
+</section>
+
+<!-- ESTATÍSTICAS POR GRUPO -->
+<section class="content-grid" style="grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px;">
+    <div class="panel-card">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">Banco de dados</p>
+                <h3>Atendimentos por grupo</h3>
+            </div>
+        </div>
+        <div id="stats-por-grupo" class="empty-state">Carregando...</div>
+    </div>
+
+    <div class="panel-card">
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">Banco de dados</p>
+                <h3>Volume por hora do dia</h3>
+            </div>
+        </div>
+        <div id="stats-linha-tempo" class="empty-state">Carregando...</div>
+        <canvas id="chart-hora" height="160" style="margin-top: 16px;"></canvas>
+    </div>
+</section>
+
+<!-- MODAL DE CONVERSA -->
+<div id="modal-conversa" class="modal-overlay" hidden>
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="modal-titulo">Conversa</h3>
+            <button class="modal-close" id="modal-fechar">✕</button>
+        </div>
+        <div id="modal-corpo" class="modal-corpo"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

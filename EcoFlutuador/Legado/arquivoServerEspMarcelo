@@ -1,0 +1,113 @@
+// ===== PONTE 1 =====
+#define IN1_1 18
+#define IN2_1 19
+#define IN3_1 21
+#define IN4_1 22
+
+// ===== PONTE 2 =====
+#define IN1_2 25
+#define IN2_2 26
+#define IN3_2 27
+#define IN4_2 32
+
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char* ssid = "ESP32-Robo";
+const char* password = "12345678";
+
+WebServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+
+  int pinos[] = {IN1_1, IN2_1, IN3_1, IN4_1, IN1_2, IN2_2, IN3_2, IN4_2};
+  for (int i = 0; i < 8; i++) pinMode(pinos[i], OUTPUT);
+  parar();
+
+  // Cria rede Wi-Fi
+  WiFi.softAP(ssid, password);
+  Serial.println("Rede criada: ESP32-Robo");
+
+  // Define rotas
+  server.on("/", HTTP_GET, [](){
+    server.send(200, "text/html", paginaHTML());
+  });
+
+  server.on("/move", HTTP_GET, [](){
+    if(server.hasArg("cmd")){
+      char cmd = server.arg("cmd").charAt(0);
+      executarComando(cmd);
+    }
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.begin();
+  Serial.println("Servidor iniciado!");
+}
+
+// ===== FUNÇÕES DE MOVIMENTO =====
+void setMotor(int inA, int inB, int dir){
+  if(dir > 0){ digitalWrite(inA,HIGH); digitalWrite(inB,LOW); }
+  else if(dir < 0){ digitalWrite(inA,LOW); digitalWrite(inB,HIGH); }
+  else{ digitalWrite(inA,LOW); digitalWrite(inB,LOW); }
+}
+
+void mover(int m1,int m2,int m3,int m4){
+  setMotor(IN1_1, IN2_1, m1);
+  setMotor(IN3_1, IN4_1, m2);
+  setMotor(IN1_2, IN2_2, m3);
+  setMotor(IN3_2, IN4_2, m4);
+}
+
+void parar(){ mover(0,0,0,0); }
+
+void executarComando(char cmd){
+  switch(cmd){
+    case 'f': mover(-1,1,1,-1); break; // FRENTE
+    case 't': mover(1,-1,-1,1); break; // TRÁS
+    case 'l': mover(-1,-1,1,1); break; // ESQUERDA
+    case 'r': mover(1,1,-1,-1); break; // DIREITA
+    case 'q': mover(-1,1,-1,1); break; // GIRO ESQ
+    case 'e': mover(1,-1,1,-1); break; // GIRO DIR
+    case 's': parar(); break;           // PARAR
+  }
+}
+
+// ===== LOOP =====
+void loop(){
+  server.handleClient();
+}
+
+// ===== PÁGINA WEB =====
+String paginaHTML(){
+  return R"rawliteral(
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Controle Robo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      button{width:80px;height:80px;margin:5px;font-size:20px;}
+    </style>
+  </head>
+  <body>
+    <h2>Controle Robo</h2>
+    <div>
+      <button onclick="mover('f')">Frente</button><br>
+      <button onclick="mover('l')">Esq</button>
+      <button onclick="mover('s')">Parar</button>
+      <button onclick="mover('r')">Dir</button><br>
+      <button onclick="mover('t')">Tras</button><br>
+      <button onclick="mover('q')">Girar E</button>
+      <button onclick="mover('e')">Girar D</button>
+    </div>
+    <script>
+      function mover(cmd){
+        fetch('/move?cmd='+cmd);
+      }
+    </script>
+  </body>
+</html>
+  )rawliteral";
+}

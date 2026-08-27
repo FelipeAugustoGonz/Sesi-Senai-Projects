@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>{% block title %}Mentor Maker SESI{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <div class="app-shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">🤖 Robô Educador Pepper + ESP32</p>
+                <h1 class="brand">Mentor Maker SESI</h1>
+            </div>
+            <nav class="topbar-nav">
+                <a href="/" class="nav-link"><i class="fas fa-home"></i> Início</a>
+                <a href="/dashboard" class="nav-link"><i class="fas fa-chart-line"></i> Monitor</a>
+            </nav>
+        </header>
+
+        <main class="page-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

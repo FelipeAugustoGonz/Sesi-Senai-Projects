@@ -1,0 +1,14 @@
+version: '3.9'
+
+services:
+  mentor-maker:
+    build: .
+    container_name: mentor-maker
+
+    ports:
+      - "5000:5000"
+
+    volumes:
+      - .:/app
+
+    restart: always
