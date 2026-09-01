@@ -70,6 +70,10 @@ def decidir_acao(objectInfo, largura_frame=320):
     Lógica de navegação autônoma baseada na posição do objeto detectado.
     Divide o frame em três zonas horizontais: esquerda / centro / direita.
     Retorna o caractere de comando ou None.
+
+    Para fins de alteração do sistema devemos manter a lógica de distância 
+    porém alterar o formato de decidir ação... Ele deve receber formatos json
+    para decisão, sem processamento de imagem ativo no raspberry PI
     """
     if not objectInfo:
         return None  # nada detectado → fica parado
@@ -91,6 +95,11 @@ def decidir_acao(objectInfo, largura_frame=320):
 
 class Camera:
     def __init__(self):
+        """
+        Nessa parte precisa ter resize da identificação (alterar pixels
+        e fps) e parar de rodar a imagem... Precisamos que ele corte processamento
+        ativo da imagem and send only data to the decision system
+        """
         self.cam = cv2.VideoCapture(0, cv2.CAP_V4L2)
         self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
         self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)

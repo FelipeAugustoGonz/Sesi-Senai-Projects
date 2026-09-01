@@ -1,0 +1,47 @@
+# EcoFlutuador POC - Configuration
+# Copie para config.local.yaml e ajuste se necessário
+
+camera:
+  index: 0
+  width: 320
+  height: 240
+  fps: 10
+  backend: "ANY"  # ANY para Windows/macOS, V4L2 no Linux
+  buffer_size: 1
+
+model:
+  weights: "models/frozen_inference_graph.pb"
+  config: "models/ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt"
+  classes: "models/coco.names"
+  input_size: [320, 320]
+  conf_threshold: 0.45
+  nms_threshold: 0.2
+  target_classes: ["bottle"]
+
+serial:
+  port: "/dev/ttyUSB0"  # Linux: /dev/ttyUSB0 ou /dev/ttyACM0; Windows: COM3, COM4...
+  baudrate: 115200
+  timeout: 1.0
+  reconnect_delay: 2.0
+  auto_detect: true  # tenta portas comuns se a principal falhar
+
+decision:
+  frame_width: 320
+  zones: 3  # esquerda/centro/direita
+  send_only_on_change: true
+  default_command: "s"  # STOP quando sem detecção
+
+api:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8080
+
+logging:
+  level: "INFO"
+  format: "json"  # cada linha = JSON válido
+  print_fps_interval: 30  # frames
+
+performance:
+  target_fps: 10
+  min_fps: 5
+  max_inference_ms: 300
