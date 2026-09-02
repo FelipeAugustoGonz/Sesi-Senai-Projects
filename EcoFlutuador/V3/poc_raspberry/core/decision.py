@@ -10,10 +10,10 @@ from core.detector import Detection
 
 @dataclass
 class DecisionConfig:
-    frame_width: int = 320
     zones: int = 3
     default_command: str = "s"  # STOP when no detection
     send_only_on_change: bool = True
+    # frame_width será obtido dinamicamente do frame (não hardcoded)
 
 
 class DecisionEngine:
@@ -24,19 +24,28 @@ class DecisionEngine:
     - Center zone: command 'w' (forward)
     - Right zone: command 'd' (turn right)
     - No detection: command 's' (stop)
+    
+    Zones are proportional to frame width, so they work with any resolution.
     """
 
     def __init__(self, config: DecisionConfig):
         self.config = config
         self._logger = logging.getLogger(__name__)
         self._last_command: Optional[str] = None
-        self._zone_width = config.frame_width // config.zones
+        # zone_width will be calculated dynamically based on frame width
 
-    def decide(self, detections: List[Detection]) -> str:
+    def decide(self, detections: List[Detection], frame_width: int = 320) -> Optional[str]:
         """
         Decide navigation command based on detections.
-        Returns command character: 'w', 'a', 'd', 's', 'q', 'e'
+        Returns command character: 'w', 'a', 'd', 's', 'q', 'e' or None if no change.
+        
+        Args:
+            detections: List of Detection objects
+            frame_width: Width of the frame in pixels (for proportional zones)
         """
+        # Calculate zone boundaries based on actual frame width
+        zone_width = frame_width // self.config.zones
+        
         if not detections:
             cmd = self.config.default_command
         else:
@@ -45,10 +54,10 @@ class DecisionEngine:
             x, y, w, h = best.bbox
             cx = x + w // 2  # center X
 
-            # Determine zone
-            if cx < self._zone_width:
+            # Determine zone proportionally to frame width
+            if cx < zone_width:
                 cmd = 'a'      # left
-            elif cx > 2 * self._zone_width:
+            elif cx > 2 * zone_width:
                 cmd = 'd'      # right
             else:
                 cmd = 'w'      # center
@@ -64,11 +73,13 @@ class DecisionEngine:
         """Reset last command (e.g., when switching modes)."""
         self._last_command = None
 
-    def get_zones(self) -> dict:
+    def get_zones(self, frame_width: int = 320) -> dict:
         """Return zone boundaries for debugging."""
+        zone_width = frame_width // self.config.zones
         return {
-            "left": (0, self._zone_width),
-            "center": (self._zone_width, 2 * self._zone_width),
-            "right": (2 * self._zone_width, self.config.frame_width),
-            "zone_width": self._zone_width
+            "left": (0, zone_width),
+            "center": (zone_width, 2 * zone_width),
+            "right": (2 * zone_width, frame_width),
+            "zone_width": zone_width,
+            "frame_width": frame_width
         }

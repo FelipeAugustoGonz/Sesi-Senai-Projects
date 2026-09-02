@@ -2,12 +2,15 @@
 # Copie para config.local.yaml e ajuste se necessário
 
 camera:
-  index: 0
-  width: 320
-  height: 240
+  backend: "PICAMERA2"  # PICAMERA2 para RPi CSI, V4L2 para USB Linux, ANY para Windows/macOS
+  width: 640
+  height: 480
   fps: 10
-  backend: "ANY"  # ANY para Windows/macOS, V4L2 no Linux
   buffer_size: 1
+  # Para Picamera2: configurações avançadas
+  picamera2:
+    format: "RGB888"  # ou "XRGB8888", "YUV420"
+    transform: {}     # ex: {"hflip": true, "vflip": true}
 
 model:
   weights: "models/frozen_inference_graph.pb"
@@ -26,10 +29,10 @@ serial:
   auto_detect: true  # tenta portas comuns se a principal falhar
 
 decision:
-  frame_width: 320
   zones: 3  # esquerda/centro/direita
   send_only_on_change: true
   default_command: "s"  # STOP quando sem detecção
+  # frame_width será obtido dinamicamente do frame (não hardcoded)
 
 api:
   enabled: true

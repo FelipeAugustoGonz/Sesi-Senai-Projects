@@ -67,12 +67,13 @@ class Pipeline:
             ))
         else:
             self._camera = Camera(CameraConfig(
-                index=cam_cfg.get("index", 0),
+                backend=cam_cfg.get("backend", "V4L2"),
                 width=cam_cfg.get("width", 320),
                 height=cam_cfg.get("height", 240),
                 fps=cam_cfg.get("fps", 10),
-                backend=cam_cfg.get("backend", "V4L2"),
-                buffer_size=cam_cfg.get("buffer_size", 1)
+                buffer_size=cam_cfg.get("buffer_size", 1),
+                picamera2_format=cam_cfg.get("picamera2", {}).get("format", "RGB888"),
+                picamera2_transform=cam_cfg.get("picamera2", {}).get("transform", {})
             ))
 
         if not self._camera.start():
@@ -101,8 +102,9 @@ class Pipeline:
                 return False
 
         # Decision engine
+        decision_cfg = self.config.get("decision", {})
+        # frame_width is dynamic — passed from actual frame later
         self._decision = DecisionEngine(DecisionConfig(
-            frame_width=decision_cfg.get("frame_width", 320),
             zones=decision_cfg.get("zones", 3),
             default_command=decision_cfg.get("default_command", "s"),
             send_only_on_change=decision_cfg.get("send_only_on_change", True)
@@ -161,8 +163,9 @@ class Pipeline:
 
         inference_ms = (time.perf_counter() - inference_start) * 1000
 
-        # Decision
-        decision = self._decision.decide(detections)
+        # Decision — pass actual frame width for proportional zones
+        frame_width = frame.shape[1]
+        decision = self._decision.decide(detections, frame_width=frame_width)
         cmd_to_send = decision if decision else self._decision._last_command
 
         # Build state
@@ -340,11 +343,25 @@ def main():
                         help="Override log level (DEBUG, INFO, WARNING, ERROR)")
     args = parser.parse_args()
 
-    # Handle list-cameras
+    # List cameras
     if args.list_cameras:
         print("Available cameras:")
         for idx in list_cameras():
-            print(f"  /dev/video{idx} (index {idx})")
+            print(f"  {idx}")
+        # Also list Picamera2 modes if available
+        try:
+            from picamera2 import Picamera2
+            p = Picamera2()
+            modes = p.sensor_modes
+            print(f"\nPicamera2 sensor modes ({len(modes)} available):")
+            for m in modes:
+                size = m.get('size', (0, 0))
+                fmt = m.get('format', 'N/A')
+                fps = m.get('fps', 'N/A')
+                print(f"  {size[0]}x{size[1]} @ {fps}fps ({fmt})")
+            p.close()
+        except ImportError:
+            pass
         return 0
 
     # Load config

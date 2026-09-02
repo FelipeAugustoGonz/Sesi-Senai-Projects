@@ -17,31 +17,27 @@ class TestDecisionEngine(unittest.TestCase):
     """Test zone-based decision logic."""
 
     def setUp(self):
-        self.config = DecisionConfig(frame_width=320, zones=3)
-        self.engine = DecisionEngine(self.config)
+        self.engine = DecisionEngine(DecisionConfig(zones=3))
 
     def _make_detection(self, x: int, y: int = 100, w: int = 60, h: int = 100, conf: float = 0.9) -> Detection:
         return Detection(bbox=[x, y, w, h], class_name="bottle", confidence=conf)
 
     def test_left_zone_returns_a(self):
         """Object in left third -> 'a' (turn left)."""
-        # Left zone: 0-106px
         det = self._make_detection(x=50)  # center at ~80px
-        result = self.engine.decide([det])
+        result = self.engine.decide([det], frame_width=320)
         self.assertEqual(result, 'a')
 
     def test_center_zone_returns_w(self):
         """Object in center third -> 'w' (forward)."""
-        # Center zone: 106-212px
         det = self._make_detection(x=150)  # center at ~180px
-        result = self.engine.decide([det])
+        result = self.engine.decide([det], frame_width=320)
         self.assertEqual(result, 'w')
 
     def test_right_zone_returns_d(self):
         """Object in right third -> 'd' (turn right)."""
-        # Right zone: 212-320px
         det = self._make_detection(x=250)  # center at ~280px
-        result = self.engine.decide([det])
+        result = self.engine.decide([det], frame_width=320)
         self.assertEqual(result, 'd')
 
     def test_no_detection_returns_stop(self):
@@ -73,7 +69,7 @@ class TestDecisionEngine(unittest.TestCase):
         det_small = self._make_detection(x=50, w=20, h=20)    # area=400, left zone
         det_large = self._make_detection(x=250, w=80, h=80)   # area=6400, right zone
         # Large is in right zone, should win
-        result = self.engine.decide([det_small, det_large])
+        result = self.engine.decide([det_small, det_large], frame_width=320)
         self.assertEqual(result, 'd')
 
     def test_reset_clears_last_command(self):
@@ -86,12 +82,135 @@ class TestDecisionEngine(unittest.TestCase):
 
     def test_custom_frame_width(self):
         """Zones scale with frame width."""
-        config = DecisionConfig(frame_width=640, zones=3)
-        engine = DecisionEngine(config)
+        engine = DecisionEngine(DecisionConfig(zones=3))
         # Left zone: 0-213px
         det = self._make_detection(x=100)  # center at 130px -> left
-        result = engine.decide([det])
+        result = engine.decide([det], frame_width=640)
         self.assertEqual(result, 'a')
+
+
+class TestDecisionEngineResolutions(unittest.TestCase):
+    """Test that decision logic works correctly at different resolutions.
+
+    The same relative object position must produce the same decision
+    regardless of the absolute resolution.
+    """
+
+    def setUp(self):
+        self.engine = DecisionEngine(DecisionConfig(zones=3))
+
+    def _make_detection_at_fraction(self, fraction_x: float, frame_width: int, frame_height: int,
+                                     w: int = 60, h: int = 100, conf: float = 0.9) -> Detection:
+        """Create a detection at a relative x position (0.0-1.0) in a given frame."""
+        cx = int(fraction_x * frame_width)
+        x = cx - w // 2
+        y = (frame_height // 2) - (h // 2)
+        return Detection(bbox=[x, y, w, h], class_name="bottle", confidence=conf)
+
+    def test_left_320x240(self):
+        """Object in left third at 320x240 -> 'a'."""
+        det = self._make_detection_at_fraction(0.15, 320, 240)
+        self.assertEqual(self.engine.decide([det], frame_width=320), 'a')
+
+    def test_center_320x240(self):
+        """Object in center third at 320x240 -> 'w'."""
+        det = self._make_detection_at_fraction(0.50, 320, 240)
+        self.assertEqual(self.engine.decide([det], frame_width=320), 'w')
+
+    def test_right_320x240(self):
+        """Object in right third at 320x240 -> 'd'."""
+        det = self._make_detection_at_fraction(0.85, 320, 240)
+        self.assertEqual(self.engine.decide([det], frame_width=320), 'd')
+
+    def test_left_640x480(self):
+        """Object in left third at 640x480 -> 'a'."""
+        det = self._make_detection_at_fraction(0.15, 640, 480)
+        self.assertEqual(self.engine.decide([det], frame_width=640), 'a')
+
+    def test_center_640x480(self):
+        """Object in center third at 640x480 -> 'w'."""
+        det = self._make_detection_at_fraction(0.50, 640, 480)
+        self.assertEqual(self.engine.decide([det], frame_width=640), 'w')
+
+    def test_right_640x480(self):
+        """Object in right third at 640x480 -> 'd'."""
+        det = self._make_detection_at_fraction(0.85, 640, 480)
+        self.assertEqual(self.engine.decide([det], frame_width=640), 'd')
+
+    def test_left_1280x720(self):
+        """Object in left third at 1280x720 -> 'a'."""
+        det = self._make_detection_at_fraction(0.15, 1280, 720)
+        self.assertEqual(self.engine.decide([det], frame_width=1280), 'a')
+
+    def test_center_1280x720(self):
+        """Object in center third at 1280x720 -> 'w'."""
+        det = self._make_detection_at_fraction(0.50, 1280, 720)
+        self.assertEqual(self.engine.decide([det], frame_width=1280), 'w')
+
+    def test_right_1280x720(self):
+        """Object in right third at 1280x720 -> 'd'."""
+        det = self._make_detection_at_fraction(0.85, 1280, 720)
+        self.assertEqual(self.engine.decide([det], frame_width=1280), 'd')
+
+    def test_left_1920x1080(self):
+        """Object in left third at 1920x1080 -> 'a'."""
+        det = self._make_detection_at_fraction(0.15, 1920, 1080)
+        self.assertEqual(self.engine.decide([det], frame_width=1920), 'a')
+
+    def test_center_1920x1080(self):
+        """Object in center third at 1920x1080 -> 'w'."""
+        det = self._make_detection_at_fraction(0.50, 1920, 1080)
+        self.assertEqual(self.engine.decide([det], frame_width=1920), 'w')
+
+    def test_right_1920x1080(self):
+        """Object in right third at 1920x1080 -> 'd'."""
+        det = self._make_detection_at_fraction(0.85, 1920, 1080)
+        self.assertEqual(self.engine.decide([det], frame_width=1920), 'd')
+
+    def test_consistent_across_resolutions(self):
+        """Same relative position produces same decision at all resolutions."""
+        engine = DecisionEngine(DecisionConfig(zones=3))
+        for fw in [320, 640, 1280, 1920]:
+            det_left = self._make_detection_at_fraction(0.15, fw, fw * 3 // 4)
+            det_center = self._make_detection_at_fraction(0.50, fw, fw * 3 // 4)
+            det_right = self._make_detection_at_fraction(0.85, fw, fw * 3 // 4)
+            self.assertEqual(engine.decide([det_left], frame_width=fw), 'a')
+            self.assertEqual(engine.decide([det_center], frame_width=fw), 'w')
+            self.assertEqual(engine.decide([det_right], frame_width=fw), 'd')
+
+    def test_zone_boundaries_320(self):
+        """Verify zone boundaries at 320px width."""
+        zones = self.engine.get_zones(frame_width=320)
+        self.assertEqual(zones["zone_width"], 106)  # 320//3 = 106
+        self.assertEqual(zones["left"], (0, 106))
+        self.assertEqual(zones["center"], (106, 212))  # 2*106 = 212
+        self.assertEqual(zones["right"], (212, 320))
+
+    def test_zone_boundaries_640(self):
+        """Verify zone boundaries at 640px width."""
+        zones = self.engine.get_zones(frame_width=640)
+        self.assertEqual(zones["zone_width"], 213)  # 640//3 = 213
+        self.assertEqual(zones["left"], (0, 213))
+        self.assertEqual(zones["center"], (213, 426))  # 2*213 = 426
+        self.assertEqual(zones["right"], (426, 640))
+
+    def test_zone_boundaries_1280(self):
+        """Verify zone boundaries at 1280px width."""
+        zones = self.engine.get_zones(frame_width=1280)
+        self.assertEqual(zones["zone_width"], 426)  # 1280//3 = 426
+        self.assertEqual(zones["left"], (0, 426))
+        self.assertEqual(zones["center"], (426, 852))  # 2*426 = 852
+        self.assertEqual(zones["right"], (852, 1280))
+
+    def test_boundary_left_edge(self):
+        """Object exactly at left boundary (x=0) should be LEFT."""
+        det = Detection(bbox=[0, 100, 60, 100], class_name="bottle", confidence=0.9)  # cx=30
+        self.assertEqual(self.engine.decide([det], frame_width=320), 'a')
+
+    def test_boundary_right_edge(self):
+        """Object at far right should be RIGHT."""
+        det = Detection(bbox=[260, 100, 60, 100], class_name="bottle", confidence=0.9)  # cx=290
+        self.assertEqual(self.engine.decide([det], frame_width=320), 'd')
 
 
 class TestSerialProtocol(unittest.TestCase):

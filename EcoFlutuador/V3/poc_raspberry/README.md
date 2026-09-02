@@ -25,12 +25,17 @@ Esta Proof of Concept (POC) demonstra o pipeline autônomo de navegação do Eco
 ```
 poc_raspberry/
 ├── config.yaml          # Configuração completa (paths, camera, modelo, serial, decisão, API)
+│   # camera.backed suporta: PICAMERA2 (CSI), V4L2 (USB), ANY, DSHOW, MSMF
+│   # camera.width/height/fps: resolução capturada (configurável)
+│   # camera.picamera2.format e transform: configurações específicas Picamera2
+│   # model.input_size: tamanho do preprocessamento (SEPARADO da resolução da câmera)
+│   # decision.zones: 3 zonas proporcionais (esquerda/centro/direita) — NÃO hardcoded
 ├── requirements.txt     # Dependências Python
 ├── main.py              # Entry point: mock | dry-run | real
 ├── core/
-│   ├── camera.py        # Captura assíncrona (thread + buffer 1)
-│   ├── detector.py      # YOLO/SSD via OpenCV DNN
-│   ├── decision.py      # Lógica de zonas (esq/centro/dir)
+│   ├── camera.py        # Captura assíncrona (thread + buffer 1) — PICAMERA2/V4L2/ANY
+│   ├── detector.py      # YOLO/SSD via OpenCV DNN (input_size separado da câmera)
+│   ├── decision.py      # Lógica de zonas proporcionais (esq/centro/dir) — frame_width dinâmico
 │   ├── serial_link.py   # Protocolo serial RPi↔ESP32
 │   └── state.py         # Dataclass DetectionState + JSON
 ├── api/
@@ -327,7 +332,122 @@ cap.release()
 
 ---
 
-## 10. Como Verificar a Serial
+## 9. Como Alterar a Resolução da Câmera
+
+A resolução da câmera é **totalmente configurável** pelo `config.yaml`. Não é hardcoded no código.
+
+### Como alterar:
+
+1. Abra `config.yaml`
+2. Altere `width` e `height` dentro da seção `camera:`
+3. Salve o arquivo
+4. Execute `python main.py dry-run`
+5. Confira no log a **resolução real** (pode diferir da solicitada se o sensor não suportar)
+6. Verifique FPS e `inference_ms`
+
+### Exemplo — mudar de 320x240 para 1280x720:
+
+```yaml
+camera:
+  backend: "PICAMERA2"  # ou "V4L2" para câmera USB
+  width: 1280
+  height: 720
+  fps: 10
+  buffer_size: 1
+```
+
+### Resoluções recomendadas para Raspberry Pi 5:
+
+| Resolução | Uso | Observação |
+|-----------|-----|------------|
+| 320x240 | Mínimo, máxima FPS | Bom para testes rápidos |
+| 640x480 | Equilíbrio FPS/precisão | Recomendado para início |
+| 1280x720 | Boa precisão | FPS moderado no RPi 5 |
+| 1920x1080 | Máxima qualidade | FPS pode ser menor |
+
+**Importante:** Nem toda resolução arbitrária é suportada pelo sensor. O Picamera2 lista os modos disponíveis e ajusta automaticamente para o mais próximo suportado.
+
+### Como listar os modos suportados pela câmera CSI:
+
+```bash
+python main.py --list-cameras
+```
+
+Isso mostra todos os modos do sensor (tamanho, formato, FPS disponíveis).
+
+### Como funciona a separação entre resolução da câmera e input do modelo:
+
+- `camera.width / camera.height` = resolução **capturada** pela câmera CSI
+- `model.input_size` = tamanho usado no **preprocessamento** do modelo YOLO
+
+Exemplo: a câmera captura 1920x1080, o detector redimensiona para 320x320 antes de inferir. As bounding boxes são convertidas corretamente de volta para as coordenadas do frame original (1920x1080) antes de chegar ao DecisionEngine.
+
+### Por que a resolução não fica hardcoded na decisão:
+
+O `DecisionEngine` calcula as zonas **proporcionalmente** à largura real do frame:
+- Esquerda: 0 a 1/3 da largura
+- Centro: 1/3 a 2/3 da largura
+- Direita: 2/3 à largura total
+
+Portanto, um objeto na mesma posição relativa (ex: 15% da largura) sempre gera a mesma decisão (`a`), independentemente de a câmera estar a 320px ou 1920px.
+
+### Testar diferentes resoluções:
+
+```bash
+# MOCK com diferentes resoluções
+python -m mock.run_mock --frames 30 --fps 10 --width 320 --height 240
+python -m mock.run_mock --frames 30 --fps 10 --width 640 --height 480
+python -m mock.run_mock --frames 30 --fps 10 --width 1280 --height 720
+python -m mock.run_mock --frames 30 --fps 10 --width 1920 --height 1080
+```
+
+### Erros comuns:
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| Câmera não abre com resolução solicitada | Sensor não suporta a resolução | Use `--list-cameras` para ver modos disponíveis |
+| Resolução real diferente da solicitada | Picamera2 ajusta para modo mais próximo | Verifique o log: "Picamera2 started: WxH @ FPS" |
+| FPS muito baixo em resolução alta | Sensor ou processamento limitado | Reduza para 640x480 ou 1280x720 |
+
+---
+
+## 10. Como Verificar a Câmera
+
+```bash
+# Listar índices e modos do sensor
+python main.py --list-cameras
+
+# Testar câmera CSI no RPi
+rpicam-hello -t 0
+
+# Capturar foto de teste
+rpicam-still -o camera_test.jpg
+
+# Testar captura rápida (OpenCV)
+python -c "
+import cv2
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+cap.set(cv2.CAP_PROP_FPS, 10)
+ret, frame = cap.read()
+print(f'OK: {frame.shape} - {frame.dtype}' if ret else 'FALHOU')
+cap.release()
+"
+
+# Verificar FPS real
+python -c "
+import cv2, time
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+cap.set(cv2.CAP_PROP_FPS, 10)
+t0 = time.time()
+for _ in range(30):
+    cap.read()
+print(f'FPS real: {30/(time.time()-t0):.1f}')
+cap.release()
+"
 
 ```bash
 # Ver portas
@@ -441,6 +561,14 @@ Cada linha no terminal = **um JSON válido** por frame processado.
 | CPU (1 core) | < 80% | < 60% |
 | RAM | < 400 MB | < 300 MB |
 
+### Matriz de resoluções (preencher com dados medidos no RPi):
+
+| Resolução | FPS solicitado | FPS real | inference_ms média | Detecção | Decisão | Observação |
+|-----------|----------------|----------|--------------------|----------|---------|------------|
+| 640x480   | 10             | ...      | ...                | ...      | ...     | ...        |
+| 1280x720  | 10             | ...      | ...                | ...      | ...     | ...        |
+| 1920x1080 | 10             | ...      | ...                | ...      | ...     | ...        |
+
 ### Benchmark rápido:
 ```bash
 # Dry-run por 30 segundos
@@ -530,7 +658,7 @@ Mesmo comportamento do Ctrl+C.
 Principais ajustes para performance:
 
 ```yaml
-# Para mais FPS (menos precisão):
+# Ajuste de performance:
 model:
   input_size: [160, 160]      # Menor = mais rápido, menos preciso
   conf_threshold: 0.5         # Maior = menos falsos positivos
@@ -540,10 +668,18 @@ model:
   input_size: [320, 320]      # Default
   conf_threshold: 0.4         # Menor = detecta mais longe
 
-# Zonas de decisão:
+# Zonas de decisão (proporcionais ao frame_width real):
 decision:
-  frame_width: 320
-  zones: 3                    # Pode aumentar para 5 zonas
+  zones: 3                    # 3 zonas: esquerda/centro/direita
+  # frame_width é obtido do frame — NÃO hardcoded
+
+# Câmera (resolução configurável):
+camera:
+  backend: "PICAMERA2"        # PICAMERA2 (CSI), V4L2 (USB), ANY, DSHOW, MSMF
+  width: 1280
+  height: 720
+  fps: 10
+  buffer_size: 1
 
 # Serial:
 serial:

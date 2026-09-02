@@ -37,16 +37,16 @@ def setup_logging(level: str = "INFO", json_format: bool = True):
     )
 
 
-def run_mock(num_frames: int = 100, target_fps: int = 10, verbose: bool = True):
+def run_mock(num_frames: int = 100, target_fps: int = 10, width: int = 320, height: int = 240, verbose: bool = True):
     """
     Run mock pipeline.
     Returns True if successful.
     """
     logger = logging.getLogger("mock_runner")
 
-    # Initialize components
+    # Initialize components with configurable resolution
     cam = MockCamera(MockCameraConfig(
-        width=320, height=240, fps=target_fps
+        width=width, height=height, fps=target_fps
     ))
     serial = MockSerialLink(MockSerialConfig(response_delay=0.001))
 
@@ -115,10 +115,11 @@ def run_mock(num_frames: int = 100, target_fps: int = 10, verbose: bool = True):
             from core.detector import Detection
             detections = [Detection(bbox=[x, y, bw, bh], class_name="bottle", confidence=0.9)]
 
-            # Decision
+            # Decision — pass actual frame width for proportional zones
+            frame_width = cam.config.width
             from core.decision import DecisionEngine
-            decision_engine = DecisionEngine(DecisionConfig(frame_width=320))
-            decision = decision_engine.decide(detections)
+            decision_engine = DecisionEngine(DecisionConfig())
+            decision = decision_engine.decide(detections, frame_width=frame_width)
 
             if decision:
                 serial.send_command(decision)
@@ -132,8 +133,8 @@ def run_mock(num_frames: int = 100, target_fps: int = 10, verbose: bool = True):
                 decision=decision or decision_engine._last_command,
                 inference_ms=1.0,
                 fps=target_fps,
-                frame_width=320,
-                frame_height=240
+                frame_width=frame_width,
+                frame_height=height
             )
 
             # Log state
@@ -181,6 +182,8 @@ def main():
     parser = argparse.ArgumentParser(description="EcoFlutuador POC Mock Runner")
     parser.add_argument("--frames", type=int, default=100, help="Number of frames to process")
     parser.add_argument("--fps", type=int, default=10, help="Target FPS")
+    parser.add_argument("--width", type=int, default=320, help="Mock frame width")
+    parser.add_argument("--height", type=int, default=240, help="Mock frame height")
     parser.add_argument("--log-level", default="INFO", help="Log level")
     parser.add_argument("--no-json", action="store_true", help="Disable JSON logging")
     parser.add_argument("--quiet", action="store_true", help="Suppress per-frame JSON output")
@@ -191,6 +194,8 @@ def main():
     success = run_mock(
         num_frames=args.frames,
         target_fps=args.fps,
+        width=args.width,
+        height=args.height,
         verbose=not args.quiet
     )
 
