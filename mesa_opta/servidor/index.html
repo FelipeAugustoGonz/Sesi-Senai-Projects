@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mesa Seletora SENAI</title>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color:#eaf0ff;background:#08101e}
+    body{max-width:1100px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:center}
+    .badge,.card{background:#111d31;border:1px solid #263957;border-radius:14px}.badge{padding:8px 12px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:18px 0}
+    .card{padding:18px}.label{color:#91a5c7;font-size:.85rem}.value{font-size:1.6rem;font-weight:700;margin-top:8px}
+    .io{display:flex;gap:8px;flex-wrap:wrap}.io span{padding:10px 13px;border-radius:10px;background:#263247}
+    .io .on{background:#087f5b;color:white}.off{color:#8290a8}.warn{color:#ffd166}h1,h2{margin-bottom:8px}
+  </style>
+</head>
+<body>
+  <div class="top"><div><h1>Mesa Seletora</h1><div class="label">Finder OPTA Advanced</div></div><div id="conexao" class="badge">Aguardando</div></div>
+  <div class="grid">
+    <div class="card"><div class="label">Estado</div><div id="estado" class="value">—</div></div>
+    <div class="card"><div class="label">Altura</div><div id="altura" class="value">—</div></div>
+    <div class="card"><div class="label">Material</div><div id="material" class="value">—</div></div>
+    <div class="card"><div class="label">Destino</div><div id="destino" class="value">—</div></div>
+  </div>
+  <h2>Entradas</h2><div id="entradas" class="io"></div>
+  <h2>Saídas</h2><div id="saidas" class="io"></div>
+  <h2>Contadores</h2><div id="contadores" class="grid"></div>
+  <script>
+    const $=id=>document.getElementById(id), io=(id,data)=>{$(id).innerHTML=Object.entries(data||{}).map(([k,v])=>`<span class="${v?'on':'off'}">${k}: ${v?'ON':'OFF'}</span>`).join('')};
+    async function update(){try{const r=await fetch('/api/status',{cache:'no-store'}),d=await r.json();const age=d.recebido_em?(Date.now()-Date.parse(d.recebido_em))/1000:999;$('conexao').textContent=age<3?'Opta conectado':'Sem dados recentes';$('conexao').className='badge '+(age<3?'':'warn');$('estado').textContent=d.estado||'—';$('altura').textContent=d.altura||'—';$('material').textContent=d.metal===true?'Metálico':d.metal===false?'Não metálico':'—';$('destino').textContent=d.destino||'—';io('entradas',d.entradas);io('saidas',d.saidas);$('contadores').innerHTML=Object.entries(d.contadores||{}).map(([k,v])=>`<div class="card"><div class="label">${k}</div><div class="value">${v}</div></div>`).join('')}catch(e){$('conexao').textContent='Servidor indisponível'}}
+    update();setInterval(update,500);
+  </script>
+</body>
+</html>
+
