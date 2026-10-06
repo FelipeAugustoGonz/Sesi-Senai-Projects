@@ -48,3 +48,14 @@ A emissão serial tem custo de execução; preservar as regras não comprova equ
 - Testes HTTP originais e teste de payload CNC: execute `python -m unittest discover -s testes -v` dentro desta pasta.
 
 O histórico local fica em servidor/telemetria.ndjson. Não contém autenticação; use em ambiente local de teste.
+
+## Linha de comando para funcionamento
+cmd to test cnc simulation 
+python -m venv .venv
+python -m pip install pyserial
+python servidor\server.py
+python -m serial.tools.list_ports
+python servidor\ponte_usb.py --porta COM5
+
+TESTE AUTOMATICO
+python -m unittest discover -s testes -v
