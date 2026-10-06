@@ -415,8 +415,7 @@ void atualizarTelemetriaCnc() {
   }
   // Nao fragmentar uma linha JSON entre mensagens de diagnostico existentes.
   // Cada fragmento tem prefixo proprio e e remontado pelo notebook.
-  int livre = Serial.availableForWrite();
-  if (frameCncPosicao < frameCncTamanho && livre >= 48) {
+  if (Serial && frameCncPosicao < frameCncTamanho) {
     size_t quantidade = frameCncTamanho - frameCncPosicao;
     if (quantidade > 32) quantidade = 32;
     Serial.print("CNC_CHUNK:");
